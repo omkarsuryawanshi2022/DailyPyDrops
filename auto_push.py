@@ -251,7 +251,11 @@ def push_batch():
     git("add", "--", *relative_paths)
 
     # Verify that Git has staged changes.
-    staged = git("diff", "--cached", "--name-only").stdout.splitlines()
+    #staged = git("diff", "--cached", "--name-only").stdout.splitlines()
+    staged = [
+    line.replace("\\", "/")
+    for line in git("diff", "--cached", "--name-only").stdout.splitlines()
+]
 
     expected_staged = set(relative_paths)
 
