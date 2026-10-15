@@ -154,14 +154,22 @@ def scheduled_datetime(batch_number):
 def get_next_batch(files, progress):
     completed = set(progress["completed_files"])
 
+    # Exclude files already tracked in GitHub repository.
+    tracked_output = git(
+        "ls-files", "--", "python_scripts"
+    ).stdout.splitlines()
+
+    tracked_names = {
+        Path(name).name for name in tracked_output
+    }
+
     remaining = [
         p for p in files
         if p.name not in completed
+        and p.name not in tracked_names
     ]
 
     return remaining[:BATCH_SIZE]
-
-
 def show_next_batch():
     files = get_source_files()
     progress = load_progress()
