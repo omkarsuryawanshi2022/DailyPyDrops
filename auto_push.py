@@ -227,45 +227,46 @@ def push_batch():
     log.info("Scheduled slot: %s", scheduled.isoformat())
     log.info("Selected files: %d", len(batch))
 
+        # Copy selected files only.
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Copy selected files only.
     for source in batch:
         destination = UPLOAD_DIR / source.name
 
         if destination.exists():
-            raise RuntimeError(
-                f"Destination already exists: {destination}. "
-                "Inspect it before continuing."
-            )
+            if destination.is_file():
+                log.info("File already exists; skipping copy: %s", source.name)
+            else:
+                raise RuntimeError(
+                    f"Destination is not a file: {destination}"
+                )
+        else:
+            shutil.copy2(source, destination)
+            log.info("Copied: %s", source.name)
 
-        shutil.copy2(source, destination)
-        log.info("Copied: %s", source.name)
-
-    # Stage only the newly copied files.
+    # Stage only the selected batch files.
     relative_paths = [
-        str(Path("python_scripts") / p.name)
+        (Path("python_scripts") / p.name).as_posix()
         for p in batch
     ]
 
     git("add", "--", *relative_paths)
 
-    # Verify that Git has staged changes.
-    #staged = git("diff", "--cached", "--name-only").stdout.splitlines()
-    staged = [
-    line.replace("\\", "/")
-    for line in git("diff", "--cached", "--name-only").stdout.splitlines()
-]
+    # Verify staged files against this batch.
+    staged = {
+        line.replace("\\", "/")
+        for line in git(
+            "diff", "--cached", "--name-only"
+        ).stdout.splitlines()
+    }
 
     expected_staged = set(relative_paths)
 
-    if set(staged) != expected_staged:
+    if not expected_staged.issubset(staged):
         raise RuntimeError(
-            "Staged files do not match the selected batch. "
-            "Do not push; inspect git status."
+            "Some selected files are not staged correctly. "
+            "Inspect git status before continuing."
         )
-
-    names = ", ".join(p.name for p in batch)
 
     git(
         "commit",
